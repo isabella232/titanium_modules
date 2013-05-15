@@ -113,13 +113,15 @@ Force a secure connection when communicating with localytics servers. Default is
 var Localytics = require('com.localytics');
 
 Ti.API.info("module is => " + Localytics);
+
 Localytics.setLoggingEnabled(true);
 
 Localytics.setOptIn(true);
 
 Localytics.setEnableHTTPs(true);
 
-// Put yor Localytics appkey in the startSession method
+// Put your Localytics appkey in the startSession method
+
 Localytics.startSession("201ebe7260948ea6c6b2ade-7237dbfe-f147-11e1-4fe8-00ef75f326674");
 
 Localytics.setCustomDimension(0, "Free User");
