@@ -2,3 +2,6 @@
 build.properties
 build
 .svn
+/*
+/*/
+!/localytics/
