@@ -28,9 +28,14 @@ import android.text.format.DateUtils;
      * 1.6: Fixed network type reporting.  Added reporting of app signature, device SDK level, device manufacturer, serial number.
      * 2.0: New upload format.
  	 * 2.5: Improvements in detecting time skew and Facebook attribution ability.
+ 	 * 2.6: Customer lifetime value support
+ 	 * 2.7: Google Play attribution and support for app keys in AndroidManifest.xml
+ 	 * 2.8: Add support for rollup keys in AndroidManifest.xml
+ 	 * 2.10: Push support
+ 	 * 2.11: Logging fixes and unhashed Android ID 
      */
     //@formatter:on
-    public static final String LOCALYTICS_CLIENT_LIBRARY_VERSION = "android_2.5"; //$NON-NLS-1$
+    public static final String LOCALYTICS_CLIENT_LIBRARY_VERSION = "android_2.11"; //$NON-NLS-1$
 
     /**
      * The package name of the Localytics library.
@@ -43,6 +48,16 @@ import android.text.format.DateUtils;
      */
     public static final String LOCALYTICS_PACKAGE_NAME = "com.localytics.android"; //$NON-NLS-1$
 
+    /**
+     * Name of the metadata property in the manifest that represents the app key
+     */
+    public static final String LOCALYTICS_METADATA_APP_KEY = "LOCALYTICS_APP_KEY"; //$NON-NLS-1$
+
+    /**
+     * Name of the metadata property in the manifest that represents the rollup key
+     */
+    public static final String LOCALYTICS_METADATA_ROLLUP_KEY = "LOCALYTICS_ROLLUP_KEY"; //$NON-NLS-1$
+    
     /**
      * Maximum number of sessions to store on disk.
      */
@@ -82,7 +97,7 @@ import android.text.format.DateUtils;
      * Before releasing a production version of an app, this should be set to false for privacy and performance reasons. When
      * logging is enabled, sensitive information such as the device ID may be printed to the log.
      */
-    public static final boolean IS_LOGGABLE = true;
+    public static final boolean IS_LOGGABLE = false;
 
     /**
      * Flag indicating whether runtime method parameter checking is performed.

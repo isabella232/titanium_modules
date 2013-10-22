@@ -1,6 +1,6 @@
 // @formatter:off
 /*
- * LocalyticsProvider.java Copyright (C) 2012 Char Software Inc., DBA Localytics. This code is provided under the Localytics
+ * LocalyticsProvider.java Copyright (C) 2013 Char Software Inc., DBA Localytics. This code is provided under the Localytics
  * Modified BSD License. A copy of this license has been distributed in a file called LICENSE with this source code. Please visit
  * www.localytics.com for more information.
  */
@@ -57,11 +57,16 @@ import java.util.Set;
      * <li>3: No format changes--just deleting bad data stranded in the database</li>
      * <li>4: Add {@link SessionsDbColumns#LOCALYTICS_INSTALLATION_ID}</li>
      * <li>5: Add {@link SessionsDbColumns#DEVICE_WIFI_MAC_HASH}</li>
-     * <li>5: Change attributes to have a package name prefix to allow for Localytics internal attributes</li>
-     * <li>6: Add info table</li>
+     * <li>6: Change attributes to have a package name prefix to allow for Localytics internal attributes</li>
+     * <li>7: Add info table</li>
+     * <li>8: Create identifiers table and add primary key to info table</li>
+     * <li>9: Add {@link EventsDbColumns#CLV_INCREASE}</li>
+     * <li>10: Add {@link InfoDbColumns#PLAY_ATTRIBUTION}</li>
+     * <li>11: Add {@link InfoDbColumns#REGISTRATION_ID}</li>
+     * <li>12: Add {@link InfoDbColumns#FIRST_ANDROID_ID} and {@link SessionsDbColumns#DEVICE_ANDROID_ID}</li>
      * </ol>
      */
-    private static final int DATABASE_VERSION = 8;
+    private static final int DATABASE_VERSION = 12;
 
     /**
      * Singleton instance of the {@link LocalyticsProvider}. Lazily initialized via {@link #getInstance(Context, String)}.
@@ -535,11 +540,11 @@ import java.util.Set;
             db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s TEXT UNIQUE NOT NULL, %s TEXT UNIQUE NOT NULL, %s INTEGER NOT NULL CHECK (%s >= 0), %s INTEGER NOT NULL CHECK(%s IN (%s, %s)));", ApiKeysDbColumns.TABLE_NAME, ApiKeysDbColumns._ID, ApiKeysDbColumns.API_KEY, ApiKeysDbColumns.UUID, ApiKeysDbColumns.CREATED_TIME, ApiKeysDbColumns.CREATED_TIME, ApiKeysDbColumns.OPT_OUT, ApiKeysDbColumns.OPT_OUT, SQLITE_BOOLEAN_FALSE, SQLITE_BOOLEAN_TRUE)); //$NON-NLS-1$
 
             // sessions table
-            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s INTEGER REFERENCES %s(%s) NOT NULL, %s TEXT UNIQUE NOT NULL, %s INTEGER NOT NULL CHECK (%s >= 0), %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s INTEGER NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT);", SessionsDbColumns.TABLE_NAME, SessionsDbColumns._ID, SessionsDbColumns.API_KEY_REF, ApiKeysDbColumns.TABLE_NAME, ApiKeysDbColumns._ID, SessionsDbColumns.UUID, SessionsDbColumns.SESSION_START_WALL_TIME, SessionsDbColumns.SESSION_START_WALL_TIME, SessionsDbColumns.LOCALYTICS_LIBRARY_VERSION, SessionsDbColumns.LOCALYTICS_INSTALLATION_ID, SessionsDbColumns.APP_VERSION, SessionsDbColumns.ANDROID_VERSION, SessionsDbColumns.ANDROID_SDK, SessionsDbColumns.DEVICE_MODEL, SessionsDbColumns.DEVICE_MANUFACTURER, SessionsDbColumns.DEVICE_ANDROID_ID_HASH, SessionsDbColumns.DEVICE_TELEPHONY_ID, SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH, SessionsDbColumns.DEVICE_SERIAL_NUMBER_HASH, SessionsDbColumns.DEVICE_WIFI_MAC_HASH, SessionsDbColumns.LOCALE_LANGUAGE, SessionsDbColumns.LOCALE_COUNTRY, SessionsDbColumns.NETWORK_CARRIER, SessionsDbColumns.NETWORK_COUNTRY, SessionsDbColumns.NETWORK_TYPE, SessionsDbColumns.DEVICE_COUNTRY, SessionsDbColumns.LATITUDE, SessionsDbColumns.LONGITUDE)); //$NON-NLS-1$
+            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s INTEGER REFERENCES %s(%s) NOT NULL, %s TEXT UNIQUE NOT NULL, %s INTEGER NOT NULL CHECK (%s >= 0), %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s INTEGER NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT NOT NULL, %s TEXT NOT NULL, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT);", SessionsDbColumns.TABLE_NAME, SessionsDbColumns._ID, SessionsDbColumns.API_KEY_REF, ApiKeysDbColumns.TABLE_NAME, ApiKeysDbColumns._ID, SessionsDbColumns.UUID, SessionsDbColumns.SESSION_START_WALL_TIME, SessionsDbColumns.SESSION_START_WALL_TIME, SessionsDbColumns.LOCALYTICS_LIBRARY_VERSION, SessionsDbColumns.LOCALYTICS_INSTALLATION_ID, SessionsDbColumns.APP_VERSION, SessionsDbColumns.ANDROID_VERSION, SessionsDbColumns.ANDROID_SDK, SessionsDbColumns.DEVICE_MODEL, SessionsDbColumns.DEVICE_MANUFACTURER, SessionsDbColumns.DEVICE_ANDROID_ID_HASH, SessionsDbColumns.DEVICE_TELEPHONY_ID, SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH, SessionsDbColumns.DEVICE_SERIAL_NUMBER_HASH, SessionsDbColumns.DEVICE_WIFI_MAC_HASH, SessionsDbColumns.LOCALE_LANGUAGE, SessionsDbColumns.LOCALE_COUNTRY, SessionsDbColumns.NETWORK_CARRIER, SessionsDbColumns.NETWORK_COUNTRY, SessionsDbColumns.NETWORK_TYPE, SessionsDbColumns.DEVICE_COUNTRY, SessionsDbColumns.LATITUDE, SessionsDbColumns.LONGITUDE, SessionsDbColumns.DEVICE_ANDROID_ID)); //$NON-NLS-1$
 
             // events table
-            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s INTEGER REFERENCES %s(%s) NOT NULL, %s TEXT UNIQUE NOT NULL, %s TEXT NOT NULL, %s INTEGER NOT NULL CHECK (%s >= 0), %s INTEGER NOT NULL CHECK (%s >= 0));", EventsDbColumns.TABLE_NAME, EventsDbColumns._ID, EventsDbColumns.SESSION_KEY_REF, SessionsDbColumns.TABLE_NAME, SessionsDbColumns._ID, EventsDbColumns.UUID, EventsDbColumns.EVENT_NAME, EventsDbColumns.REAL_TIME, EventsDbColumns.REAL_TIME, EventsDbColumns.WALL_TIME, EventsDbColumns.WALL_TIME)); //$NON-NLS-1$
-
+            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s INTEGER REFERENCES %s(%s) NOT NULL, %s TEXT UNIQUE NOT NULL, %s TEXT NOT NULL, %s INTEGER NOT NULL CHECK (%s >= 0), %s INTEGER NOT NULL CHECK (%s >= 0), %s INTEGER NOT NULL DEFAULT 0);", EventsDbColumns.TABLE_NAME, EventsDbColumns._ID, EventsDbColumns.SESSION_KEY_REF, SessionsDbColumns.TABLE_NAME, SessionsDbColumns._ID, EventsDbColumns.UUID, EventsDbColumns.EVENT_NAME, EventsDbColumns.REAL_TIME, EventsDbColumns.REAL_TIME, EventsDbColumns.WALL_TIME, EventsDbColumns.WALL_TIME, EventsDbColumns.CLV_INCREASE)); //$NON-NLS-1$
+            
             // event_history table
             /*
              * Note: the events history should be using foreign key constrains on the upload blobs table, but that is currently
@@ -558,10 +563,13 @@ import java.util.Set;
             db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s INTEGER REFERENCES %s(%s) NOT NULL, %s INTEGER REFERENCES %s(%s) NOT NULL);", UploadBlobEventsDbColumns.TABLE_NAME, UploadBlobEventsDbColumns._ID, UploadBlobEventsDbColumns.UPLOAD_BLOBS_KEY_REF, UploadBlobsDbColumns.TABLE_NAME, UploadBlobsDbColumns._ID, UploadBlobEventsDbColumns.EVENTS_KEY_REF, EventsDbColumns.TABLE_NAME, EventsDbColumns._ID)); //$NON-NLS-1$
         
             // info table
-            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s TEXT, %s INTEGER);", InfoDbColumns.TABLE_NAME, InfoDbColumns._ID, InfoDbColumns.FB_ATTRIBUTION, InfoDbColumns.FIRST_RUN));
+            db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s TEXT, %s INTEGER);", InfoDbColumns.TABLE_NAME, InfoDbColumns._ID, InfoDbColumns.FB_ATTRIBUTION, InfoDbColumns.PLAY_ATTRIBUTION, InfoDbColumns.REGISTRATION_ID, InfoDbColumns.REGISTRATION_VERSION, InfoDbColumns.FIRST_ANDROID_ID, InfoDbColumns.FIRST_TELEPHONY_ID, InfoDbColumns.PACKAGE_NAME, InfoDbColumns.FIRST_RUN));
             final ContentValues values = new ContentValues();
             values.put(InfoDbColumns.FB_ATTRIBUTION, DatapointHelper.getFBAttribution(mContext));
             values.put(InfoDbColumns.FIRST_RUN, Boolean.TRUE);
+            values.put(InfoDbColumns.FIRST_ANDROID_ID, DatapointHelper.getAndroidIdOrNull(mContext));
+            values.put(InfoDbColumns.FIRST_TELEPHONY_ID, DatapointHelper.getTelephonyDeviceIdOrNull(mContext));
+            values.put(InfoDbColumns.PACKAGE_NAME, mContext.getPackageName());
             db.insertOrThrow(InfoDbColumns.TABLE_NAME, null, values);
             
             // identifiers table
@@ -680,10 +688,42 @@ import java.util.Set;
             if (oldVersion < 8)
             {
                 // identifiers table
-            	db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s TEXT UNIQUE NOT NULL, %s TEXT NOT NULL);", IdentifiersDbColumns.TABLE_NAME, IdentifiersDbColumns._ID, IdentifiersDbColumns.KEY, IdentifiersDbColumns.VALUE));	
-         
-            	// add primary key for information table
-            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s INTEGER PRIMARY KEY AUTOINCREMENT;", InfoDbColumns.TABLE_NAME, InfoDbColumns._ID)); //$NON-NLS-1$
+            	db.execSQL(String.format("CREATE TABLE %s (%s INTEGER PRIMARY KEY AUTOINCREMENT, %s TEXT UNIQUE NOT NULL, %s TEXT NOT NULL);", IdentifiersDbColumns.TABLE_NAME, IdentifiersDbColumns._ID, IdentifiersDbColumns.KEY, IdentifiersDbColumns.VALUE));	         
+            }
+            
+            if (oldVersion < 9)
+            {            	
+            	// add clv_increase column to events table
+                db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s INTEGER NOT NULL DEFAULT 0;", EventsDbColumns.TABLE_NAME, EventsDbColumns.CLV_INCREASE)); //$NON-NLS-1$
+            }
+            
+            if (oldVersion < 10)
+            {
+            	// add play_attribution to info table
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.PLAY_ATTRIBUTION)); //$NON-NLS-1$
+            }
+            
+            if (oldVersion < 11)
+            {
+            	// add registration_id and registration_version to info table
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.REGISTRATION_ID)); //$NON-NLS-1$
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.REGISTRATION_VERSION)); //$NON-NLS-1$
+            }
+            
+            if (oldVersion < 12)
+            {
+            	// add first_android_id to info table
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.FIRST_ANDROID_ID)); //$NON-NLS-1$
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.FIRST_TELEPHONY_ID)); //$NON-NLS-1$
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", InfoDbColumns.TABLE_NAME, InfoDbColumns.PACKAGE_NAME)); //$NON-NLS-1$
+            	final ContentValues values = new ContentValues();
+                values.put(InfoDbColumns.FIRST_ANDROID_ID, DatapointHelper.getAndroidIdOrNull(mContext));
+                values.put(InfoDbColumns.FIRST_TELEPHONY_ID, DatapointHelper.getTelephonyDeviceIdOrNull(mContext));
+                values.put(InfoDbColumns.PACKAGE_NAME, mContext.getPackageName());
+            	db.update(InfoDbColumns.TABLE_NAME, values, null, null);
+            	
+            	// add device_android_id to sessions table
+            	db.execSQL(String.format("ALTER TABLE %s ADD COLUMN %s TEXT;", SessionsDbColumns.TABLE_NAME, SessionsDbColumns.DEVICE_ANDROID_ID)); //$NON-NLS-1$
             }
         }
         // @Override
@@ -791,6 +831,61 @@ import java.util.Set;
          * <p>
          */
         public static final String FB_ATTRIBUTION = "fb_attribution"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * The Google Play referrer string at install-time. May be null if unavailable or already uploaded.
+         * <p>
+         */
+        public static final String PLAY_ATTRIBUTION = "play_attribution"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * The GCM registration ID. May be null if notifications are disabled.
+         * <p>
+         */
+        public static final String REGISTRATION_ID = "registration_id"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * The app version used to determine if GCM needs to be re-registered. May be null if notifications are disabled. 
+         * <p>
+         */
+        public static final String REGISTRATION_VERSION = "registration_version"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * String representing the device Android ID at install time
+         * <p>
+         * Constraints: None
+         *
+         * @see android.provider.Settings.Secure#ANDROID_ID
+         */
+        public static final String FIRST_ANDROID_ID = "first_android_id"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * String representing the telephony ID at install time. May be null for non-telephony devices. May also be null if the
+         * parent application doesn't have {@link android.Manifest.permission#READ_PHONE_STATE}.
+         * <p>
+         * Constraints: None
+         *
+         * @see android.telephony.TelephonyManager#getDeviceId()
+         */
+        public static final String FIRST_TELEPHONY_ID = "first_telephony_id"; //$NON-NLS-1$
+        
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * String representing the package name. 
+         * <p>
+         */
+        public static final String PACKAGE_NAME = "package_name"; //$NON-NLS-1$        
     }
     
     /**
@@ -976,6 +1071,12 @@ import java.util.Set;
          */
         public static final String WALL_TIME = "wall_time"; //$NON-NLS-1$
 
+        /**
+         * TYPE: {@code long}
+         * <p>
+         * A long representing the customer value increase
+         */
+        public static final String CLV_INCREASE = "clv_increase"; //$NON-NLS-1$
     }
 
     /**
@@ -1183,6 +1284,17 @@ import java.util.Set;
          */
         public static final String DEVICE_ANDROID_ID_HASH = "device_android_id_hash"; //$NON-NLS-1$
 
+        /**
+         * TYPE: {@code String}
+         * <p>
+         * String representing the device Android ID
+         * <p>
+         * Constraints: None
+         *
+         * @see android.provider.Settings.Secure#ANDROID_ID
+         */
+        public static final String DEVICE_ANDROID_ID = "device_android_id"; //$NON-NLS-1$
+        
         /**
          * TYPE: {@code String}
          * <p>

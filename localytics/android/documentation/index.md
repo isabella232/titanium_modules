@@ -14,6 +14,15 @@ Then, to access this module from JavaScript, you would do the following:
 
 The localytics variable is a reference to the Module object.
 
+## Setting up your app
+
+You'll need to specify your app's Localytics Application Key in a file called localytics.properties. 
+
+Locate the example file included in the module's example directory. Modify this file to include your custom app key.
+
+Copy the file into your application's project folder. The path should be 'YourApp/platform/android/bin/assets/localytics.properties'. 
+
+
 ## Sessions
 
 This plugin manages the session lifecycle on its own. There is no need to directly call 'open', 'close', or 'upload', although these methods are exposed.

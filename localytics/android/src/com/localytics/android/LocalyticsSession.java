@@ -1,6 +1,6 @@
 // @formatter:off
 /*
- * LocalyticsSession.java Copyright (C) 2012 Char Software Inc., DBA Localytics. This code is provided under the Localytics
+ * LocalyticsSession.java Copyright (C) 2013 Char Software Inc., DBA Localytics. This code is provided under the Localytics
  * Modified BSD License. A copy of this license has been distributed in a file called LICENSE with this source code. Please visit
  * www.localytics.com for more information.
  */
@@ -9,8 +9,12 @@
 package com.localytics.android;
 
 import android.Manifest.permission;
+import android.app.PendingIntent;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.database.CursorJoiner;
 import android.os.Build;
@@ -116,7 +120,7 @@ import com.localytics.android.LocalyticsProvider.UploadBlobsDbColumns;
  *
  * @version 2.0
  */
-public final class LocalyticsSession
+public class LocalyticsSession
 {
     /*
      * DESIGN NOTES
@@ -179,7 +183,22 @@ public final class LocalyticsSession
      * Flow event
      */
     /* package */static final String FLOW_EVENT = String.format(EVENT_FORMAT, Constants.LOCALYTICS_PACKAGE_NAME, "flow"); //$NON-NLS-1$
+    
+    /**
+     * Push Opened event
+     */
+    /* package */static final String PUSH_OPENED_EVENT = "Localytics Push Opened"; //$NON-NLS-1$    
 
+    /**
+     * Campaign ID attribute
+     */
+    /* package */static final String CAMPAIGN_ID_ATTRIBUTE = "Campaign ID"; //$NON-NLS-1$    
+
+    /**
+     * Creative ID attribute
+     */
+    /* package */static final String CREATIVE_ID_ATTRIBUTE = "Creative ID"; //$NON-NLS-1$    
+    
     /**
      * Background thread used for all Localytics session processing. This thread is shared across all instances of
      * LocalyticsSession within a process.
@@ -253,7 +272,21 @@ public final class LocalyticsSession
      * accessing this field from within the {@link #mSessionHandler}.
      */
     protected static final Map<String, Boolean> sIsUploadingMap = new HashMap<String, Boolean>();
-
+    
+    /**
+     * Constructs a new {@link LocalyticsSession} object.
+     *
+     * @param context The context used to access resources on behalf of the app. It is recommended to use
+     *            {@link Context#getApplicationContext()} to avoid the potential memory leak incurred by maintaining references to
+     *            {@code Activity} instances. Cannot be null.
+     * @throws IllegalArgumentException if {@code context} is null
+     * @throws IllegalArgumentException if LOCALYTICS_APP_KEY in AndroidManifest.xml is null or empty
+     */
+    public LocalyticsSession(final Context context)
+    {
+    	this(context, null);
+    }
+    
     /**
      * Constructs a new {@link LocalyticsSession} object.
      *
@@ -270,9 +303,16 @@ public final class LocalyticsSession
         {
             throw new IllegalArgumentException("context cannot be null"); //$NON-NLS-1$
         }
-        if (TextUtils.isEmpty(key))
+        
+        String appKey = key;
+        if (TextUtils.isEmpty(appKey))
         {
-            throw new IllegalArgumentException("key cannot be null or empty"); //$NON-NLS-1$
+        	appKey = DatapointHelper.getLocalyticsAppKeyOrNull(context);
+        }
+        
+        if (TextUtils.isEmpty(appKey))
+        {
+        	throw new IllegalArgumentException("key cannot be null or empty"); //$NON-NLS-1$
         }
 
         /*
@@ -302,12 +342,12 @@ public final class LocalyticsSession
 
         synchronized (sLocalyticsSessionIntrinsicLock)
         {
-            SessionHandler handler = sLocalyticsSessionHandlerMap.get(key);
+            SessionHandler handler = sLocalyticsSessionHandlerMap.get(appKey);
 
             if (null == handler)
             {
-                handler = new SessionHandler(mContext, key, sSessionHandlerThread.getLooper());
-                sLocalyticsSessionHandlerMap.put(key, handler);
+                handler = new SessionHandler(mContext, appKey, sSessionHandlerThread.getLooper());
+                sLocalyticsSessionHandlerMap.put(appKey, handler);
 
                 /*
                  * Complete Handler initialization on a background thread. Note that this is not generally a good best practice,
@@ -497,9 +537,9 @@ public final class LocalyticsSession
     }
 
     /**
-     * Behaves identically to calling {@code tagEvent(event, null, null)}.
+     * Behaves identically to calling {@code tagEvent(event, null, null, 0)}.
      *
-     * @see #tagEvent(String, Map, List)
+     * @see #tagEvent(String, Map, List, long)
      * @param event The name of the event which occurred. Cannot be null or empty string.
      * @throws IllegalArgumentException if {@code event} is null.
      * @throws IllegalArgumentException if {@code event} is empty.
@@ -510,9 +550,9 @@ public final class LocalyticsSession
     }
 
     /**
-     * Behaves identically to calling {@code tagEvent(event, attributes, null)}.
+     * Behaves identically to calling {@code tagEvent(event, attributes, null, 0)}.
      *
-     * @see #tagEvent(String, Map, List)
+     * @see #tagEvent(String, Map, List, long)
      * @param event The name of the event which occurred. Cannot be null or empty string.
      * @param attributes The collection of attributes for this particular event. If this parameter is null or empty, then calling
      *            this method has the same effect as calling {@link #tagEvent(String)}. This parameter may not contain null or
@@ -526,6 +566,30 @@ public final class LocalyticsSession
         tagEvent(event, attributes, null);
     }
 
+    /**
+     * Behaves identically to calling {@code tagEvent(event, attributes, customDimensions, 0)}.
+     *
+     * @see #tagEvent(String, Map, List, long)
+     * @param event The name of the event which occurred. Cannot be null or empty string.
+     * @param attributes The collection of attributes for this particular event. If this parameter is null or empty, then calling
+     *            this method has the same effect as calling {@link #tagEvent(String)}. This parameter may not contain null or
+     *            empty keys or values.
+     * @param customDimensions A set of custom reporting dimensions. If this parameter is null or empty, then no custom dimensions
+     *            are recorded and the behavior with respect to custom dimensions is like simply calling {@link #tagEvent(String)}
+     *            . The number of dimensions is capped at four. If there are more than four elements, the extra elements are
+     *            ignored. This parameter may not contain null or empty elements. This parameter is only used for enterprise level
+     *            accounts. For non-enterprise accounts, custom dimensions will be uploaded but will not be accessible in reports
+     *            until the account is upgraded to enterprise status.
+     * @throws IllegalArgumentException if {@code event} is null.
+     * @throws IllegalArgumentException if {@code event} is empty.
+     * @throws IllegalArgumentException if {@code attributes} contains null keys, empty keys, null values, or empty values.
+     * @throws IllegalArgumentException if {@code customDimensions} contains null or empty elements.
+     */
+    public void tagEvent(final String event, final Map<String, String> attributes, final List<String> customDimensions)
+    {
+        tagEvent(event, attributes, customDimensions, 0);
+    }
+    
     /**
      * <p>
      * Within the currently open session, tags that {@code event} occurred (with optionally included attributes and dimensions).
@@ -562,12 +626,13 @@ public final class LocalyticsSession
      *            ignored. This parameter may not contain null or empty elements. This parameter is only used for enterprise level
      *            accounts. For non-enterprise accounts, custom dimensions will be uploaded but will not be accessible in reports
      *            until the account is upgraded to enterprise status.
+     * @param customerValueIncrease Added to customer lifetime value. Try to use lowest possible unit, such as cents for US currency. 
      * @throws IllegalArgumentException if {@code event} is null.
      * @throws IllegalArgumentException if {@code event} is empty.
      * @throws IllegalArgumentException if {@code attributes} contains null keys, empty keys, null values, or empty values.
      * @throws IllegalArgumentException if {@code customDimensions} contains null or empty elements.
      */
-    public void tagEvent(final String event, final Map<String, String> attributes, final List<String> customDimensions)
+    public void tagEvent(final String event, final Map<String, String> attributes, final List<String> customDimensions, final long customerValueIncrease)
     {
         if (Constants.IS_PARAMETER_CHECKING_ENABLED)
         {
@@ -667,7 +732,7 @@ public final class LocalyticsSession
 
         if (null == attributes && null == customDimensions)
         {
-            mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_TAG_EVENT, new Pair<String, Map<String, String>>(eventString, null)));
+            mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_TAG_EVENT, new Triple<String, Map<String, String>, Long>(eventString, null, customerValueIncrease)));
         }
         else
         {
@@ -699,10 +764,7 @@ public final class LocalyticsSession
              * maximum number of attributes is exceeded the entries that occur later alphabetically will be skipped consistently.
              */
 
-            mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_TAG_EVENT, new Pair<String, Map<String, String>>(
-                                                                                                                                              eventString,
-                                                                                                                                              new TreeMap<String, String>(
-                                                                                                                                                                          remappedAttributes))));
+            mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_TAG_EVENT, new Triple<String, Map<String, String>, Long>(eventString, new TreeMap<String, String>(remappedAttributes), customerValueIncrease)));
         }
     }
 
@@ -755,6 +817,64 @@ public final class LocalyticsSession
     	mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_SET_IDENTIFIER, new Pair<String, String>(key, value)));
     }
 
+    public void registerPush(final String senderId)
+    {
+    	if (DatapointHelper.getApiLevel() < 8)
+    	{
+    		if (Constants.IS_LOGGABLE)
+    		{
+    			Log.w(Constants.LOG_TAG, "GCM requires API level 8 or higher"); //$NON-NLS-1$
+    		}
+    	}
+
+    	mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_REGISTER_PUSH, senderId));
+    }
+
+    public void handlePushReceived(final Intent intent)
+    {
+    	handlePushReceived(intent, null);
+    }    
+    
+    public void handlePushReceived(final Intent intent, final List<String> customDimensions)
+    {
+        if (intent == null || intent.getExtras() == null) return;
+        
+        // Tag an event indicating the push was opened
+        String llString = intent.getExtras().getString("ll");        
+        if (llString != null)
+        {
+        	try 
+        	{
+        		JSONObject llObject = new JSONObject(llString);
+        		String campaignId = llObject.getString("ca");
+        		String creativeId = llObject.getString("cr");
+        		
+        		if (campaignId != null && creativeId != null)
+        		{
+        			HashMap<String, String> attributes = new HashMap<String, String>();
+        			attributes.put(CAMPAIGN_ID_ATTRIBUTE, campaignId);
+        			attributes.put(CREATIVE_ID_ATTRIBUTE, creativeId);
+        			tagEvent(PUSH_OPENED_EVENT, attributes, customDimensions);
+        		}
+        		
+        		// Remove the extra so we don't tag the same event a second time
+        		intent.removeExtra("ll");
+        	}
+        	catch (JSONException e)
+        	{
+        		if (Constants.IS_LOGGABLE)
+        		{
+        			Log.w(Constants.LOG_TAG, "Failed to get campaign id or creatve id from payload"); //$NON-NLS-1$
+        		}
+        	}
+        }        
+    }
+
+    public void setPushRegistrationId(final String pushRegId)
+    {
+    	mSessionHandler.sendMessage(mSessionHandler.obtainMessage(SessionHandler.MESSAGE_SET_PUSH_REGID, pushRegId));
+    }
+    
     /**
      * Initiates an upload of any Localytics data for this session's API key. This should be done early in the process life in
      * order to guarantee as much time as possible for slow connections to complete. It is necessary to do this even if the user
@@ -997,6 +1117,20 @@ public final class LocalyticsSession
         public static final int MESSAGE_SET_IDENTIFIER = 8;
 
         /**
+         * Handler message to register with GCM
+         * <p>
+         * {@link Message#obj} is a string representing the sender id.
+         */
+        public static final int MESSAGE_REGISTER_PUSH = 9;
+
+        /**
+         * Handler message to set the GCM registration id
+         * <p>
+         * {@link Message#obj} is a string representing the push registration id.
+         */
+        public static final int MESSAGE_SET_PUSH_REGID = 10;
+        
+        /**
          * Sort order for the upload blobs.
          * <p>
          * This is a workaround for Android bug 3707 <http://code.google.com/p/android/issues/detail?id=3707>.
@@ -1156,9 +1290,11 @@ public final class LocalyticsSession
                         }
 
                         @SuppressWarnings("unchecked")
-                        final Pair<String, Map<String, String>> pair = (Pair<String, Map<String, String>>) msg.obj;
-                        final String event = pair.first;
-                        final Map<String, String> attributes = pair.second;
+                        final Triple<String, Map<String, String>, Long> triple = (Triple<String, Map<String, String>, Long>) msg.obj;
+ 
+                        final String event = triple.first;
+                        final Map<String, String> attributes = triple.second;
+                        final Long clv = triple.third;
 
                         mProvider.runBatchTransaction(new Runnable()
                         {
@@ -1166,7 +1302,7 @@ public final class LocalyticsSession
                             {
                                 if (null != getOpenSessionId(mProvider))
                                 {
-                                    tagEvent(event, attributes);
+                                    tagEvent(event, attributes, clv);
                                 }
                                 else
                                 {
@@ -1207,7 +1343,7 @@ public final class LocalyticsSession
                                     }
 
                                     open(false, openCloseAttributes);
-                                    tagEvent(event, attributes);
+                                    tagEvent(event, attributes, clv);
                                     close(openCloseAttributes);
                                 }
                             }
@@ -1256,6 +1392,78 @@ public final class LocalyticsSession
 
                         break;
                     }
+                    case MESSAGE_REGISTER_PUSH:
+                    {
+                        if (Constants.IS_LOGGABLE)
+                        {
+                            Log.d(Constants.LOG_TAG, "Handler received MESSAGE_REGISTER_PUSH"); //$NON-NLS-1$
+                        }
+
+                        @SuppressWarnings("unchecked")
+                        final String senderId = (String) msg.obj;
+                        
+                        mProvider.runBatchTransaction(new Runnable()
+                        {
+                        	public void run()
+                        	{
+		                        Cursor cursor = null;
+		                        
+		                        String pushRegId = null;
+		                        String pushRegVersion = null;
+		                        try
+		                        {
+		                            cursor = mProvider.query(InfoDbColumns.TABLE_NAME, null, null, null, null); //$NON-NLS-1$
+		
+		                            if (cursor.moveToFirst())
+		                            {           
+		                            	pushRegVersion = cursor.getString(cursor.getColumnIndexOrThrow(InfoDbColumns.REGISTRATION_VERSION));
+		                            	pushRegId = cursor.getString(cursor.getColumnIndexOrThrow(InfoDbColumns.REGISTRATION_ID));
+		                            }
+		                        }
+		                        finally
+		                        {
+		                            if (null != cursor)
+		                            {
+		                                cursor.close();
+		                                cursor = null;
+		                            }
+		                        }
+		                        
+		                        final String appVersion = DatapointHelper.getAppVersion(mContext);
+		                        		                        
+		                        // Only register if we don't have a registration id or if the app version has changed
+		                        if (pushRegId == null || TextUtils.isEmpty(pushRegId) || !appVersion.equals(pushRegVersion))
+		                        {
+			                        Intent registrationIntent = new Intent("com.google.android.c2dm.intent.REGISTER");
+			                        registrationIntent.putExtra("app", PendingIntent.getBroadcast(mContext, 0, new Intent(), 0));
+			                        registrationIntent.putExtra("sender", senderId);
+			                        mContext.startService(registrationIntent);
+		                        }
+                        	}
+                        });
+                        
+                        break;
+                    }                                        
+                    case MESSAGE_SET_PUSH_REGID:
+                    {
+                        if (Constants.IS_LOGGABLE)
+                        {
+                            Log.d(Constants.LOG_TAG, "Handler received MESSAGE_SET_PUSH_REGID"); //$NON-NLS-1$
+                        }
+
+                        @SuppressWarnings("unchecked")
+                        final String pushRegId = (String) msg.obj;
+                        
+                        mProvider.runBatchTransaction(new Runnable()
+                        {
+                            public void run()
+                            {
+                                SessionHandler.this.setPushRegistrationId(pushRegId);
+                            }
+                        });
+
+                        break;
+                    }     
                     case MESSAGE_UPLOAD:
                     {
                         if (Constants.IS_LOGGABLE)
@@ -1390,7 +1598,7 @@ public final class LocalyticsSession
             /*
              * Perform lazy initialization of the UploadHandler
              */
-            mUploadHandler = new UploadHandler(mContext, this, mApiKey, getInstallationId(mProvider, mApiKey), getFBAttribution(mProvider), getFirstRunStatus(mProvider), sUploadHandlerThread.getLooper());
+            mUploadHandler = new UploadHandler(mContext, this, mApiKey, getInstallationId(mProvider, mApiKey), sUploadHandlerThread.getLooper());
         }
 
         /**
@@ -1416,7 +1624,7 @@ public final class LocalyticsSession
          * @param isOptingOut true if the user is opting out. False if the user is opting back in.
          * @see #MESSAGE_OPT_OUT
          */
-        /* package */void optOut(final boolean isOptingOut)
+		/* package */void optOut(final boolean isOptingOut)
         {
             if (Constants.IS_LOGGABLE)
             {
@@ -1868,12 +2076,13 @@ public final class LocalyticsSession
             }
 
             values.put(SessionsDbColumns.DEVICE_ANDROID_ID_HASH, deviceId);
+            values.put(SessionsDbColumns.DEVICE_ANDROID_ID, DatapointHelper.getAndroidIdOrNull(mContext));
             values.put(SessionsDbColumns.DEVICE_COUNTRY, telephonyManager.getSimCountryIso());
             values.put(SessionsDbColumns.DEVICE_MANUFACTURER, DatapointHelper.getManufacturer());
             values.put(SessionsDbColumns.DEVICE_MODEL, Build.MODEL);
             values.put(SessionsDbColumns.DEVICE_SERIAL_NUMBER_HASH, DatapointHelper.getSerialNumberHashOrNull());
             values.put(SessionsDbColumns.DEVICE_TELEPHONY_ID, DatapointHelper.getTelephonyDeviceIdOrNull(mContext));
-            values.put(SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH, DatapointHelper.getTelephonyDeviceIdHashOrNull(mContext));
+            values.putNull(SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH);
             values.put(SessionsDbColumns.DEVICE_WIFI_MAC_HASH, DatapointHelper.getWifiMacHashOrNull(mContext));
             values.put(SessionsDbColumns.LOCALE_COUNTRY, Locale.getDefault().getCountry());
             values.put(SessionsDbColumns.LOCALE_LANGUAGE, Locale.getDefault().getLanguage());
@@ -1914,7 +2123,7 @@ public final class LocalyticsSession
         /**
          * Gets the installation ID of the API key.
          */
-        private static String getInstallationId(final LocalyticsProvider provider, final String apiKey)
+        /* package */ static String getInstallationId(final LocalyticsProvider provider, final String apiKey)
         {
             Cursor cursor = null;
             try
@@ -1944,36 +2153,6 @@ public final class LocalyticsSession
                 Log.w(Constants.LOG_TAG, "Installation ID couldn't be found"); //$NON-NLS-1$
             }
             return null;
-        }
-        
-        /**
-         * Gets first run status for a given API key
-         *
-         * @param provider Localytics database provider. Cannot be null.
-         * @return A boolean representing if this is the first run for the API key
-         */
-        /* package */static boolean getFirstRunStatus(final LocalyticsProvider provider)
-        {
-            Cursor cursor = null;
-            try
-            {
-                cursor = provider.query(InfoDbColumns.TABLE_NAME, null, null, null, null); //$NON-NLS-1$
-
-                if (cursor.moveToFirst())
-                {
-                    return cursor.getLong(cursor.getColumnIndexOrThrow(InfoDbColumns.FIRST_RUN)) == 1;
-                }
-            }
-            finally
-            {
-                if (null != cursor)
-                {
-                    cursor.close();
-                    cursor = null;
-                }
-            }
-            
-            return false;
         }
         
         /**
@@ -2152,6 +2331,25 @@ public final class LocalyticsSession
          */
         /* package */void tagEvent(final String event, final Map<String, String> attributes)
         {
+        	tagEvent(event, attributes, null);
+        }
+        
+        /**
+         * Tag an event in a session. Although this method SHOULD NOT be called unless a session is open, actually doing so will
+         * have no effect.
+         * <p>
+         * This method must only be called after {@link #init()} is called.
+         * <p>
+         * Note: This method is a private implementation detail. It is only made package accessible for unit testing purposes. The
+         * public interface is to send {@link #MESSAGE_TAG_EVENT} to the Handler.
+         *
+         * @param event The name of the event which occurred. Cannot be null.
+         * @param attributes The collection of attributes for this particular event. May be null.
+         * @param clv The customer value increase.
+         * @see #MESSAGE_TAG_EVENT
+         */
+        /* package */void tagEvent(final String event, final Map<String, String> attributes, final Long clv)
+        {
             final Long openSessionId = getOpenSessionId(mProvider);
             if (null == openSessionId)
             {
@@ -2173,7 +2371,16 @@ public final class LocalyticsSession
                 values.put(EventsDbColumns.EVENT_NAME, event);
                 values.put(EventsDbColumns.REAL_TIME, Long.valueOf(SystemClock.elapsedRealtime()));
                 values.put(EventsDbColumns.WALL_TIME, Long.valueOf(System.currentTimeMillis()));
-
+                
+                if (null != clv)
+                {
+                	values.put(EventsDbColumns.CLV_INCREASE, clv);
+                }
+                else
+                {
+                	values.put(EventsDbColumns.CLV_INCREASE, 0);
+                }
+                
                 /*
                  * Special case for open event: keep the start time in sync with the start time put into the sessions table.
                  */
@@ -2412,6 +2619,14 @@ public final class LocalyticsSession
             }
         }
 
+        /* package */void setPushRegistrationId(final String pushRegId)
+        {
+            final ContentValues values = new ContentValues();
+            values.put(InfoDbColumns.REGISTRATION_ID, pushRegId == null ? "" : pushRegId);
+            values.put(InfoDbColumns.REGISTRATION_VERSION, DatapointHelper.getAppVersion(mContext));
+            mProvider.update(InfoDbColumns.TABLE_NAME, values, null, null);
+        }
+        
         /**
          * Projection for {@link #conditionallyAddFlowEvent()}.
          */
@@ -2745,11 +2960,6 @@ public final class LocalyticsSession
         private final static String ANALYTICS_URL = "http://analytics.localytics.com/api/v2/applications/%s/uploads"; //$NON-NLS-1$
         
         /**
-         * Localytics attribution URL, as a format string that contains a format for the API key.
-         */
-        private final static String ATTRIBUTION_URL = "http://a.localytics.com/fb_install/%s"; //$NON-NLS-1$
-
-        /**
          * Handler message to upload all data collected so far
          * <p>
          * {@link Message#obj} is a {@code Runnable} to execute when upload is complete. The thread that this runnable will
@@ -2787,16 +2997,6 @@ public final class LocalyticsSession
         private final String mInstallId;
         
         /**
-         * Facebook attribution cookie
-         */
-        private String mFBAttribution;
-        
-        /**
-         * Whether this is the first session or not
-         */
-        private final boolean mFirstRun;
-
-        /**
          * Parent session handler to notify when an upload completes.
          */
         private final Handler mSessionHandler;
@@ -2812,7 +3012,7 @@ public final class LocalyticsSession
          * @param installId Localytics install ID.
          * @param looper to run the Handler on. Cannot be null.
          */
-        public UploadHandler(final Context context, final Handler sessionHandler, final String apiKey, final String installId, final String fbAttribution, final boolean firstRun, final Looper looper)
+        public UploadHandler(final Context context, final Handler sessionHandler, final String apiKey, final String installId, final Looper looper)
         {
             super(looper);
 
@@ -2821,8 +3021,6 @@ public final class LocalyticsSession
             mSessionHandler = sessionHandler;
             mApiKey = apiKey;
             mInstallId = installId;
-            mFBAttribution = fbAttribution;
-            mFirstRun = firstRun && (mFBAttribution != null); /* Only use first-run decorator when FB attribution is present */
         }
 
         @Override
@@ -2847,30 +3045,7 @@ public final class LocalyticsSession
                         final Runnable callback = (Runnable) msg.obj;
 
                         try
-                        {
-                        	/*
-                        	 * If Facebook attribution cookie is present, upload it to the attribution server.
-                        	 * 
-                        	 * When an attribution cookie is present, specially mark uploads during the first
-                        	 * session because of Localytics server considerations
-                        	 */
-                            if (mFBAttribution != null)
-                            {
-                            	
-                            	long createdDate = getApiKeyCreationTime(mProvider, mApiKey);
-                                if (uploadAttributions(String.format(ATTRIBUTION_URL, mApiKey), mFBAttribution, createdDate, mInstallId))
-                                {
-                            		mFBAttribution = null;
-                                    mProvider.runBatchTransaction(new Runnable()
-                                    {
-                                    	public void run()
-                                    	{
-                                        	clearAttributions(mProvider);
-                                    	}
-                                	});
-                            	}
-                            }
-                            
+                        {                            
                             final List<JSONObject> toUpload = convertDatabaseToJson(mContext, mProvider, mApiKey);
 
                             if (!toUpload.isEmpty())
@@ -2881,15 +3056,21 @@ public final class LocalyticsSession
                                     builder.append(json.toString());
                                     builder.append('\n');
                                 }
-                               
-                                if (uploadSessions(String.format(ANALYTICS_URL, mApiKey), builder.toString(), mFirstRun))
+                                
+                                String apiKey = mApiKey;
+                                String rollupKey = DatapointHelper.getLocalyticsRollupKeyOrNull(mContext);          
+                                if (rollupKey != null && !TextUtils.isEmpty(rollupKey))
+                                {
+                                	apiKey = rollupKey;
+                                }
+                                                                
+                                if (uploadSessions(String.format(ANALYTICS_URL, apiKey), builder.toString(), mInstallId))
                                 {
                                     mProvider.runBatchTransaction(new Runnable()
                                     {
                                         public void run()
                                         {
                                             deleteBlobsAndSessions(mProvider);
-                                            markFirstSessionCompleted(mProvider);
                                         }
                                     });
                                 }
@@ -2950,7 +3131,7 @@ public final class LocalyticsSession
          * @param body upload body as a string. This should be a plain old string. Cannot be null.
          * @return True on success, false on failure.
          */
-        /* package */static boolean uploadSessions(final String url, final String body, boolean firstRun)
+		/* package */static boolean uploadSessions(final String url, final String body, final String installId)
         {
             if (Constants.IS_PARAMETER_CHECKING_ENABLED)
             {
@@ -3044,10 +3225,8 @@ public final class LocalyticsSession
                     connection.setRequestProperty("x-upload-time",
                                                   Long.toString(Math.round((double) System.currentTimeMillis()
                                                                            / DateUtils.SECOND_IN_MILLIS))); //$NON-NLS-1$//$NON-NLS-2$
-                    if (firstRun)
-                    {
-                    	connection.setRequestProperty("ll-first-session", "true"); //$NON-NLS-1$
-                    }
+                    connection.setRequestProperty("x-install-id", installId); //$NON-NLS-1$
+                    connection.setRequestProperty("x-client-version", Constants.LOCALYTICS_CLIENT_LIBRARY_VERSION); //$NON-NLS-1$
                     connection.setFixedLengthStreamingMode(data.length);
 
                     OutputStream stream = null;
@@ -3122,11 +3301,9 @@ public final class LocalyticsSession
                 method.addHeader("x-upload-time",
                                  Long.toString(Math.round((double) System.currentTimeMillis()
                                                           / DateUtils.SECOND_IN_MILLIS))); //$NON-NLS-1$//$NON-NLS-2$
-                if (firstRun)
-                {
-                	method.addHeader("ll-first-session", "true"); //$NON-NLS-1$
-                }
-
+                method.addHeader("x-install-id", installId); //$NON-NLS-1$
+                method.addHeader("x-client-version", Constants.LOCALYTICS_CLIENT_LIBRARY_VERSION); //$NON-NLS-1$
+                
                 GZIPOutputStream gos = null;
                 try
                 {
@@ -3205,152 +3382,6 @@ public final class LocalyticsSession
         }
         
         /**
-         * Uploads install attributions to the attributions server
-         *
-         * @param url where {@code body} will be posted to. Cannot be null.
-         * @param fbAttribution Facebook attribution cookie. Cannot be null.
-         * @param createdDate date cookie was retrieved
-         * @param installId Localytics installId
-         * @return True on success, false on failure.
-         */
-        /* package */static boolean uploadAttributions(final String url, final String fbAttribution, final long createdDate, final String installId)
-        {
-            if (Constants.IS_PARAMETER_CHECKING_ENABLED)
-            {
-                if (null == url)
-                {
-                    throw new IllegalArgumentException("url cannot be null"); //$NON-NLS-1$
-                }
-                
-                if (null == fbAttribution)
-                {
-                    throw new IllegalArgumentException("attribution cannot be null"); //$NON-NLS-1$
-                }
-            }
-            /*
-             * As per Google's documentation, use HttpURLConnection for API 9 and greater and DefaultHttpClient for API 8 and
-             * lower. <http://android-developers.blogspot.com/2011/09/androids-http-clients.html>. HTTP library.
-             *
-             * Note: HTTP GZIP compression is explicitly disabled. Instead, the uploaded data is already GZIPPED before it is put
-             * into the HTTP post.
-             */
-            if (DatapointHelper.getApiLevel() >= 9)
-            {
- 
-                HttpURLConnection connection = null;
-                try
-                {
-                    connection = (HttpURLConnection) new URL(url).openConnection();
-
-                    connection.setDoOutput(true); // sets POST method implicitly
-                    connection.setRequestProperty("fb_attrib_first", fbAttribution); //$NON-NLS-1$//$NON-NLS-2$
-                    connection.setRequestProperty("fb_attrib_first_date", Long.toString(createdDate)); //$NON-NLS-1$//$NON-NLS-2$
-                    connection.setRequestProperty("install_id", installId); //$NON-NLS-1$//$NON-NLS-2$
-                    
-                    final int responseCode = connection.getResponseCode();
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.v(Constants.LOG_TAG, String.format("Upload complete with status %d", Integer.valueOf(responseCode))); //$NON-NLS-1$
-                    }
-
-                    /*
-                     * 5xx status codes indicate a server error, so upload should be reattempted
-                     */
-                    if (responseCode >= 500 && responseCode <= 599)
-                    {
-                        return false;
-                    }
-                }
-                catch (final MalformedURLException e)
-                {
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.w(Constants.LOG_TAG, "ClientProtocolException", e); //$NON-NLS-1$
-                    }
-
-                    return false;
-                }
-                catch (final IOException e)
-                {
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.w(Constants.LOG_TAG, "ClientProtocolException", e); //$NON-NLS-1$
-                    }
-
-                    return false;
-                }
-
-                finally
-                {
-                    if (null != connection)
-                    {
-                        connection.disconnect();
-                        connection = null;
-                    }
-                }
-            }
-            else
-            {
-                /*
-                 * Note: DefaultHttpClient appears to sometimes cause an OutOfMemory error. Although we've seen exceptions from
-                 * the wild, it isn't clear whether this is due to a bug in DefaultHttpClient or just a random error that has
-                 * occurred once or twice due to buggy devices.
-                 */
-                final DefaultHttpClient client = new DefaultHttpClient();
-                final HttpPost method = new HttpPost(url);                
-                method.addHeader("fb_attrib_first", fbAttribution); //$NON-NLS-1$//$NON-NLS-2$
-                method.addHeader("fb_attrib_first_date", Long.toString(createdDate)); //$NON-NLS-1$//$NON-NLS-2$
-                method.addHeader("install_id", installId); //$NON-NLS-1$//$NON-NLS-2$
-                
-                try
-                {
-                    final HttpResponse response = client.execute(method);
-
-                    final StatusLine status = response.getStatusLine();
-                    final int statusCode = status.getStatusCode();
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.v(Constants.LOG_TAG, String.format("Upload complete with status %d", Integer.valueOf(statusCode))); //$NON-NLS-1$
-                    }
-
-                    /*
-                     * 5xx status codes indicate a server error, so upload should be reattempted
-                     */
-                    if (statusCode >= 500 && statusCode <= 599)
-                    {
-                        return false;
-                    }
-                }
-                catch (final UnsupportedEncodingException e)
-                {
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.w(Constants.LOG_TAG, "UnsupportedEncodingException", e); //$NON-NLS-1$
-                    }
-                    return false;
-                }
-                catch (final ClientProtocolException e)
-                {
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.w(Constants.LOG_TAG, "ClientProtocolException", e); //$NON-NLS-1$
-                    }
-                    return false;
-                }
-                catch (final IOException e)
-                {
-                    if (Constants.IS_LOGGABLE)
-                    {
-                        Log.w(Constants.LOG_TAG, "IOException", e); //$NON-NLS-1$
-                    }
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        /**
          * Helper that converts blobs in the database into a JSON representation for upload.
          *
          * @return A list of JSON objects to upload to the server
@@ -3386,7 +3417,11 @@ public final class LocalyticsSession
                         }
                         
                         result.add(blobHeader);
-                        Log.w(Constants.LOG_TAG, result.toString());
+                        
+                        if (Constants.IS_LOGGABLE)
+                        {
+                        	Log.w(Constants.LOG_TAG, result.toString());
+                        }
 
                         Cursor blobEvents = null;
                         try
@@ -3540,30 +3575,6 @@ public final class LocalyticsSession
         }
         
         /**
-         * Mark that the first session has been successfully uploaded
-         *
-         * @param provider Localytics database provider. Cannot be null.
-         */
-        /* package */static void markFirstSessionCompleted(final LocalyticsProvider provider)
-        {
-            final ContentValues values = new ContentValues();
-            values.put(InfoDbColumns.FIRST_RUN, 0);
-            provider.update(InfoDbColumns.TABLE_NAME, values, null, null);
-        }
-        
-        /**
-         * Clear pending attributions after successful upload
-         *
-         * @param provider Localytics database provider. Cannot be null.
-         */
-        /* package */static void clearAttributions(final LocalyticsProvider provider)
-        {
-            final ContentValues values = new ContentValues();
-            values.putNull(InfoDbColumns.FB_ATTRIBUTION);
-            provider.update(InfoDbColumns.TABLE_NAME, values, null, null);
-        }
-
-        /**
          * Gets the creation time for an API key.
          *
          * @param provider Localytics database provider. Cannot be null.
@@ -3618,6 +3629,8 @@ public final class LocalyticsSession
                 if (cursor.moveToFirst())
                 {
                     final JSONObject result = new JSONObject();
+                    
+                    // Sessions table
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_CLIENT_APP_VERSION, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.APP_VERSION)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_DATA_CONNECTION, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.NETWORK_TYPE)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_ANDROID_ID_HASH, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_ANDROID_ID_HASH)));
@@ -3629,21 +3642,15 @@ public final class LocalyticsSession
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_SERIAL_HASH, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_SERIAL_NUMBER_HASH)) ? JSONObject.NULL
                             : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_SERIAL_NUMBER_HASH)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_SDK_LEVEL, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.ANDROID_SDK)));
-                    if (Constants.IS_DEVICE_IDENTIFIER_UPLOADED)
-                    {
-                        result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_TELEPHONY_ID, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID)) ? JSONObject.NULL
-                                : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID)));
-                    }
-                    else
-                    {
-                        result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_TELEPHONY_ID_HASH, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH)) ? JSONObject.NULL
-                                : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID_HASH)));
-                    }
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_WIFI_MAC_HASH, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_WIFI_MAC_HASH)) ? JSONObject.NULL
                             : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_WIFI_MAC_HASH)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_LOCALYTICS_API_KEY, apiKey);
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_LOCALYTICS_CLIENT_LIBRARY_VERSION, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.LOCALYTICS_LIBRARY_VERSION)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_LOCALYTICS_DATA_TYPE, JsonObjects.BlobHeader.Attributes.VALUE_DATA_TYPE);
+                    result.put(JsonObjects.BlobHeader.Attributes.KEY_CURRENT_TELEPHONY_ID, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID)) ? JSONObject.NULL
+                            : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_TELEPHONY_ID)));                    
+                    result.put(JsonObjects.BlobHeader.Attributes.KEY_CURRENT_ANDROID_ID, cursor.isNull(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_ANDROID_ID)) ? JSONObject.NULL
+                            : cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.DEVICE_ANDROID_ID)));
 
                     // This would only be null after an upgrade from an earlier version of the Localytics library
                     final String installationID = cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.LOCALYTICS_INSTALLATION_ID));
@@ -3655,7 +3662,44 @@ public final class LocalyticsSession
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_LOCALE_LANGUAGE, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.LOCALE_LANGUAGE)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_NETWORK_CARRIER, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.NETWORK_CARRIER)));
                     result.put(JsonObjects.BlobHeader.Attributes.KEY_NETWORK_COUNTRY, cursor.getString(cursor.getColumnIndexOrThrow(SessionsDbColumns.NETWORK_COUNTRY)));
+                                                    
+                    // Info table
+                    String fbAttribution = getStringFromAppInfo(provider, InfoDbColumns.FB_ATTRIBUTION);
+                    if (null != fbAttribution)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_FB_COOKIE, fbAttribution);
+                    }
+                    
+                    String playAttribution = getStringFromAppInfo(provider, InfoDbColumns.PLAY_ATTRIBUTION);
+                    if (null != playAttribution)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_GOOGLE_PLAY_ATTRIBUTION, playAttribution);
+                    }
+                    
+                    String registrationId = getStringFromAppInfo(provider, InfoDbColumns.REGISTRATION_ID);
+                    if (null != registrationId)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_PUSH_ID, registrationId);
+                    }
 
+                    String firstAndroidId = getStringFromAppInfo(provider, InfoDbColumns.FIRST_ANDROID_ID);
+                    if (null != firstAndroidId)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_ANDROID_ID, firstAndroidId);
+                    }
+
+                    String firstTelephonyId = getStringFromAppInfo(provider, InfoDbColumns.FIRST_TELEPHONY_ID);
+                    if (null != firstTelephonyId)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_DEVICE_TELEPHONY_ID, firstTelephonyId);
+                    }                    
+                    
+                    String packageName = getStringFromAppInfo(provider, InfoDbColumns.PACKAGE_NAME);
+                    if (null != packageName)
+                    {
+                    	result.put(JsonObjects.BlobHeader.Attributes.KEY_PACKAGE_NAME, packageName);
+                    }
+                    
                     return result;
                 }
 
@@ -3697,7 +3741,6 @@ public final class LocalyticsSession
                 	}
                 	
                 	result.put(cursor.getString(cursor.getColumnIndexOrThrow(IdentifiersDbColumns.KEY)), cursor.getString(cursor.getColumnIndexOrThrow(IdentifiersDbColumns.VALUE)));
-                	Log.w(Constants.LOG_TAG, "identifier found"); //$NON-NLS-1$
                 }
                 
                 return result;
@@ -3996,6 +4039,15 @@ public final class LocalyticsSession
                         result.put(JsonObjects.SessionEvent.KEY_NAME, eventName.substring(context.getPackageName().length() + 1, eventName.length()));
 
                         /*
+                         * Add customer value increase if non-zero 
+                         */                        
+                        long clv = cursor.getLong(cursor.getColumnIndex(EventsDbColumns.CLV_INCREASE));
+                        if (clv != 0)
+                        {
+                        	result.put(JsonObjects.SessionEvent.KEY_CUSTOMER_VALUE_INCREASE, clv);
+                        }
+                        
+                        /*
                          * Get the custom dimensions from the attributes table
                          */
                         Cursor attributesCursor = null;
@@ -4136,6 +4188,39 @@ public final class LocalyticsSession
                 }
             }
         }
+        
+        /**
+         * Private helper to get a column value from the InfoDb table
+         *
+         * @param provider Localytics database provider. Cannot be null.
+         * @param Database key. Cannot be null.
+         * @return The requested string
+         */
+        /* package */static String getStringFromAppInfo(final LocalyticsProvider provider, final String key)
+        {
+            Cursor cursor = null;
+            
+            try
+            {
+                cursor = provider.query(InfoDbColumns.TABLE_NAME, null, null, null, null); //$NON-NLS-1$
+
+                if (cursor.moveToFirst())
+                {
+                	return cursor.getString(cursor.getColumnIndexOrThrow(key));
+                }
+            }
+            finally
+            {
+                if (null != cursor)
+                {
+                    cursor.close();
+                    cursor = null;
+                }
+            }
+            
+            return null;
+        }
+        
 
         /**
          * Private helper to get the {@link SessionsDbColumns#SESSION_START_WALL_TIME} for a given {@link SessionsDbColumns#_ID}.
@@ -4312,6 +4397,25 @@ public final class LocalyticsSession
         {
             this.first = first;
             this.second = second;
+        }
+    }
+    
+    /**
+     * Internal helper class to pass three objects to the Handler via the {@link Message#obj}.
+     */
+    private static final class Triple<F, S, T>
+    {
+        public final F first;
+
+        public final S second;
+        
+        public final T third;
+
+        public Triple(final F first, final S second, final T third)
+        {
+            this.first = first;
+            this.second = second;
+            this.third = third;
         }
     }
 }

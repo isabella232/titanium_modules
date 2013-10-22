@@ -33,9 +33,6 @@ public class LocalyticsModule extends KrollModule
 	private static final boolean DBG = TiConfig.LOGD;
 	private static LocalyticsSession localyticsSession;
 	private static List<String> customDimensions;
-
-	// You can define constants with @Kroll.constant, for example:
-	// @Kroll.constant public static final String EXTERNAL_NAME = value;
 	
 	public LocalyticsModule()
 	{
