@@ -2,10 +2,10 @@
 # this is your module manifest and used by Titanium
 # during compilation, packaging, distribution, etc.
 #
-version: 1.2
+version: 1.0
 apiversion: 2
-description: Localytics. Containing iOS SDK 2.21
-author: Randall Dailey
+description: Localytics Android Module for SDK Android SDK 2.5
+author: Randy Dailey
 license: 
 Copyright (c) 2013, Char Software, Inc. d/b/a Localytics
 All rights reserved.
@@ -27,13 +27,12 @@ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
 SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER 
 CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, 
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-copyright: Copyright (c) 2013 Char Software Inc.
+copyright: Copyright (c) 2013 by Char Software
 
 
 # these should not be edited
-name: Localytics
-moduleid: com.localytics
-guid: 291210bd-4296-49f0-a80a-661b1d3843af
-platform: iphone
+name: localytics
+moduleid: ti.localytics
+guid: 1ba356b8-ca6f-49e3-8220-a4a17a8d74bb
+platform: android
 minsdk: 3.0.2.GA

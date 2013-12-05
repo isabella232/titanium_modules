@@ -10,7 +10,7 @@
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
 
-#define CLIENT_VERSION              @"2.17.2"
+#define CLIENT_VERSION              @"2.21.1"
 #define MARKETING_PLATFORM
 
 /*!
@@ -46,23 +46,32 @@
 
 @interface LocalyticsSession : NSObject
 
-
-+ (void)logMessage:(NSString *)message;
-
 /*!
  @property enableHTTPS
- @abstract Determines whether or not HTTPS is used when calling the Localytics
+ @abstract (Optional) Determines whether or not HTTPS is used when calling the Localytics
  post URL. The default is NO.
  */
 @property (nonatomic, assign) BOOL enableHTTPS;
 
 /*!
  @property loggingEnabled
- @abstract Determines whether or Localytics debugging information is shown
+ @abstract (Optional) Determines whether or Localytics debugging information is shown
  to the console. The default is NO
  */
 @property (nonatomic, assign) BOOL loggingEnabled;
 
+/*!
+ @property sessionTimeoutInterval
+ @abstrac (Optional) If an App stays in the background for more than this many seconds,
+ start a new session when it returns to foreground.
+ */
+@property (atomic) float sessionTimeoutInterval;
+
+/*!
+ @property localyticsDelegate
+ @abstract (Optional) Assign this delegate to the class you'd like to register to recieve 
+ the Localytics delegate callbacks (Defined at the end of this file)
+ */
 @property (nonatomic, assign) id<LocalyticsSessionDelegate> localyticsDelegate;
 
 #pragma mark Public Methods
@@ -217,6 +226,12 @@ customerValueIncrease:(NSNumber *)customerValueIncrease;
  */
 - (void)setLocation:(CLLocationCoordinate2D)deviceLocation;
 
+/*!
+ @method setPushToken
+ @abstract Stores the device's APNS token. This will be used in all event and session calls.
+ @param pushToken device token returned by application:didRegisterForRemoteNotificationsWithDeviceToken:
+ */
+- (void)setPushToken:(NSData *)pushToken;
 
 /*!
  @method setCustomDimension
@@ -270,6 +285,16 @@ customerValueIncrease:(NSNumber *)customerValueIncrease;
  To delete the value, pass in nil.
  */
 - (void)setCustomerEmail:(NSString *)email;
+
+#ifdef MARKETING_PLATFORM
+/*!
+ @method handleRemoteNotification
+ @abstract Used to record performance data for push notifications
+ @param notificationInfo The dictionary from either didFinishLaunchingWithOptions
+ or didReceiveRemoteNotification should be passed on to this method
+ */
+- (void)handleRemoteNotification:(NSDictionary *)notificationInfo;
+#endif
 
 @end
 

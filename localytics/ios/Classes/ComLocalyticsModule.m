@@ -193,6 +193,12 @@
 	
 }
 
+-(void)handleURL:(id)arg
+{
+	ENSURE_ARG_COUNT(arg, 1);
+	[[LocalyticsAmpSession shared] handleURL:[NSURL URLWithString:[TiUtils stringValue:[arg objectAtIndex:0]]]];
+}
+
 
 
 

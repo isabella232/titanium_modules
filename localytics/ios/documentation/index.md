@@ -2,9 +2,9 @@
 
 ## Description
 
-Localytics iOS Plugin for Titanium, using Localytics SDK 2.17.2
+Localytics iOS Plugin for Titanium, using Localytics SDK 2.21
 
-Updated April 2013
+Updated December 2013
 
 ## Accessing the Localytics Module
 
