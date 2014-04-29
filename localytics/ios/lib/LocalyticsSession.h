@@ -10,7 +10,7 @@
 #import <UIKit/UIKit.h>
 #import <CoreLocation/CoreLocation.h>
 
-#define CLIENT_VERSION              @"2.21.1"
+#define CLIENT_VERSION              @"2.23.0"
 #define MARKETING_PLATFORM
 
 /*!
@@ -59,6 +59,13 @@
  to the console. The default is NO
  */
 @property (nonatomic, assign) BOOL loggingEnabled;
+
+/*!
+ @property advertisingIdentifierEnabled
+ @abstract (Optional) Determines whether or not IDFA is collected and sent to Localytics.
+ The default is YES.
+ */
+@property (nonatomic, assign) BOOL advertisingIdentifierEnabled;
 
 /*!
  @property sessionTimeoutInterval
@@ -310,6 +317,15 @@ customerValueIncrease:(NSNumber *)customerValueIncrease;
  session or started a new one.
  */
 - (void)localyticsResumedSession:(BOOL)didResumeExistingSession;
+
+/*!
+ @method localyticsPrepareUploadBody
+ @abstract Register for this callback if you wish to modify the upload body before
+ being sent to Localytics
+ @param uploadBody The upload body as prepared by Localytics
+ @return The modified upload body
+ */
+- (NSString *)localyticsPrepareUploadBody:(NSString *)uploadBody;
 
 @end
 

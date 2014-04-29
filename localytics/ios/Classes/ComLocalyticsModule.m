@@ -71,7 +71,7 @@
 	[[LocalyticsSession shared] upload];
 }
 
-#pragma mark Cleanup 
+#pragma mark Cleanup
 
 -(void)dealloc
 {
@@ -193,14 +193,17 @@
 	
 }
 
--(void)handleURL:(id)arg
+-(BOOL)handleURL:(id)arg
 {
-	ENSURE_ARG_COUNT(arg, 1);
-	[[LocalyticsAmpSession shared] handleURL:[NSURL URLWithString:[TiUtils stringValue:[arg objectAtIndex:0]]]];
+    ENSURE_UI_THREAD_1_ARG(arg);
+	return [[LocalyticsAmpSession shared] handleURL:[NSURL URLWithString:[TiUtils stringValue:[arg objectAtIndex:0]]]];
 }
 
-
-
+-(void)setTestMode:(id)arg
+{
+    ENSURE_UI_THREAD_1_ARG(arg);
+    [[LocalyticsAmpSession shared] setTestModeEnabled: [TiUtils boolValue:arg def:NO]];
+}
 
 
 @end

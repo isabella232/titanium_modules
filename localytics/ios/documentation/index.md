@@ -2,9 +2,9 @@
 
 ## Description
 
-Localytics iOS Plugin for Titanium, using Localytics SDK 2.21
+Localytics iOS Plugin for Titanium, using Localytics SDK 2.23
 
-Updated December 2013
+Updated Feb 2014
 
 ## Accessing the Localytics Module
 
@@ -139,6 +139,7 @@ Localytics.tagEvent("Test Event", {"animal":"cat"}, {"age":5}, 50);
 Localytics.tagScreen("Screen1");
 
 Localytics.tagScreen("Screen2");
+
 
 ## Support
 
